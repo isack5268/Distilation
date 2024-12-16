@@ -1,9 +1,7 @@
-#include <ESP8266WiFi.h>
+#include <AuthWebpage.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-#include <WiFiClient.h>
-#include <ESP8266WebServer.h>
 #include <microDS18B20.h>
 #include <index.h>
 
@@ -13,12 +11,6 @@ uint8_t s2_addr[] = {0x28, 0xF3, 0xCB, 0x86, 0x0, 0x0, 0x0, 0xB7};
 MicroDS18B20<12, s1_addr> sensor1; //{0x28, 0x5D, 0x1E, 0x87, 0x0, 0x0, 0x0, 0xFB}
 MicroDS18B20<12, s2_addr> sensor2; //{0x28, 0xF3, 0xCB, 0x86, 0x0, 0x0, 0x0, 0xB7}
 
-WiFiClient client;
-const char* ssid = "Pancake";
-const char* pass = "Isack5268"; 
-
-ESP8266WebServer server(80);
-
 bool term_wait = true, alert = false;
 int term_delay, lastUpdate;
 float term1, term2, melody_cuba = 98, melody_para = 77, error = 0.55;
@@ -27,16 +19,20 @@ const int speakerPin = 16; // Пин для динамика
 
 void setup() {
   Serial.begin(115200);
+  EEPROM.begin(512); // Инициализация EEPROM
+  pinMode(ledPin, OUTPUT);
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, pass);
+  // Загрузка сохраненных настроек сети Wi-Fi
+  loadConfig();
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");  
+  if (ssid.isEmpty() || password.isEmpty()) {
+    // Если настроек нет, запускаем точку доступа
+    digitalWrite(ledPin, LOW);
+    startAP();
+  } else {
+    // Если настройки есть, пробуем подключиться к сети
+    connectToWiFi();
   }
-  Serial.println("WiFi Connected"); 
-  Serial.println(WiFi.localIP());
 
   server.on("/", []() {
     server.send(200, "text/html", webpage); 
