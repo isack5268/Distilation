@@ -105,7 +105,7 @@ const char webpage[] PROGMEM = R"=====(
     }
 
     .input-container input {
-      margin-right: 10px;
+      margin: 5px;
     }
 
     .input-container p {
@@ -132,7 +132,6 @@ const char webpage[] PROGMEM = R"=====(
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
       margin: 0 15px;
       width: 400px;
-      height: 100%;
     }
 
     .calc-block h2 {
@@ -141,7 +140,7 @@ const char webpage[] PROGMEM = R"=====(
     }
 
     .calc-block .button {
-      margin-top: 20px;
+      margin-top: 62px;
       margin-bottom: 20px;
     }
 
@@ -172,19 +171,24 @@ const char webpage[] PROGMEM = R"=====(
       margin-bottom: 20px;
       width: 600px;
       margin: 0 auto;
+      margin-bottom: 20px;
     }
 
     .sensors-block h1 {
       margin-top: 0;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 950px) {
+      .calc-h1{
+        margin-left: 6%;
+      }
       .calc-container {
         grid-template-columns: 1fr;
       }
       .calc-block {
         width: 100%;
         margin-bottom: 20px;
+        margin-left: 0px;
       }
       .settings-block {
         width: 100%;
@@ -194,7 +198,7 @@ const char webpage[] PROGMEM = R"=====(
       }
     }
 
-    @media (min-width: 769px) {
+    @media (min-width: 951px) {
       .calc-container {
         display: flex;
         justify-content: center;
@@ -248,13 +252,13 @@ const char webpage[] PROGMEM = R"=====(
     <h1>Настройки</h1>
     <div class="input-container">
       <input type="number" id="signalizationCuba" placeholder="Сигнал куба" required>
-      <input type="number" id="signalizationPara" placeholder="Сигнал пара" required>
+      <input class="input-container-center" type="number" id="signalizationPara" placeholder="Сигнал пара" required>
       <input type="number" id="error" placeholder="Погрешность" required>
     </div>
     <button class="button button-on" onclick="sendSignalization()">Отправить</button>
     <p id="signalizationResult"></p>
   </div>
-  <h1>Калькуляторы</h1>
+  <h1 class="calc-h1">Калькуляторы</h1>
   <div class="calc-container">
     <div class="calc-block">
       <h2>Расчет голов по абсолютному спирту</h2>
@@ -370,3 +374,58 @@ const char webpage[] PROGMEM = R"=====(
 
 </html>
 )=====";
+
+#include <ESP8266WebServer.h>
+
+float term1, term2, melody_cuba = 98, melody_para = 78, error = 0.8;
+
+void PageInitialization(){
+  server.on("/", []() {
+    server.send(200, "text/html", webpage); 
+  });
+
+  server.on("/getTime", []() {
+    String timeString = "Время работы: " + String(int(millis() / 1000 / 60)) + " мин";
+    server.send(200, "text/plain", timeString);
+  });
+
+  server.on("/getTerm1", []() {
+    String term1String = "T в кубе: " + String(term2) + "°С";
+    server.send(200, "text/plain", term1String);
+  });
+
+  server.on("/getTerm2", []() {
+    String term2String = "T сверху: " + String(term1) + "°С";
+    server.send(200, "text/plain", term2String);
+  });
+
+  server.on("/setSignalization", []() {
+    melody_cuba = server.arg("value").toFloat();
+    server.send(200, "text/plain", "Значение сигнализации получено");
+  });
+
+  server.on("/setSignalizationPara", []() {
+    melody_para = server.arg("value").toFloat();
+    server.send(200, "text/plain", "Значение погрешности получено");
+  });
+
+  server.on("/setError", []() {
+    error = server.arg("value").toFloat();
+    server.send(200, "text/plain", "Значение погрешности получено");
+  });
+
+  server.on("/setup", HTTP_GET, [](){
+    server.send(200, "text/html", reset_page);
+  });
+
+  server.on("/reset", HTTP_GET, []() {
+    EEPROM.begin(512);
+    EEPROM.write(0, 0); // Очистка EEPROM
+    EEPROM.commit();
+    server.send(200, "text/plain", "Настройки сброшены.");
+    delay(1000);
+    ESP.restart();
+  });
+
+  server.begin();
+}

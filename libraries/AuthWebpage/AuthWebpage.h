@@ -1,4 +1,4 @@
-const char webpage[] PROGMEM = R"=====(
+const char auth_page[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html lang='ru'>
 <head>
@@ -108,7 +108,6 @@ const char webpage[] PROGMEM = R"=====(
         xhr.open('POST', '/save', true);
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.send('ssid=' + encodeURIComponent(ssidValue) + '&password=' + encodeURIComponent(passwordValue));
-        document.location.href = '/restart';
       } else {
         alert('Пожалуйста, введите имя и пароль сети Wi-Fi.');
       }
@@ -119,9 +118,79 @@ const char webpage[] PROGMEM = R"=====(
 </html>
 )=====";
 
+const char reset_page[] PROGMEM = R"=====(
+<!DOCTYPE html>
+<html lang='ru'>
+<head>
+  <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Сброс настроек</title>
+  <style>
+    html {
+      font-family: Helvetica;
+      display: inline-block;
+      margin: 0px auto;
+      text-align: center;
+    }
+
+    body {
+      margin-top: 50px;
+      background: #2f2f2f;
+    }
+
+    h1 {
+      color: #ffffff;
+      margin: 50px auto 30px;
+    }
+
+    p {
+      color: #ffffff;
+    }
+
+    .button {
+      display: inline-block;
+      width: 200px;
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 13px 0;
+      text-decoration: none;
+      font-size: 25px;
+      margin: 20px 0;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .button:active {
+      background-color: #3e8e41;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Сброс настроек</h1>
+  <p>Нажмите кнопку, чтобы сбросить записанную точку доступа Wi-Fi из памяти.</p>
+  <button class="button" onclick="resetSettings()">Сбросить настройки</button>
+
+  <script>
+    function resetSettings() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/reset', true);
+      xhr.send();
+      document.location.href = '/';
+    }
+  </script>
+</body>
+
+</html>
+)=====";
+
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
+
+// Пин для подключения светодиода (необязательно)
+const int ledPin = LED_BUILTIN;
 
 // Создаем объект веб-сервера
 ESP8266WebServer server(80);
@@ -169,16 +238,27 @@ void saveConfig() {
 void startAP() {
   WiFi.softAPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP("Distilation", "12345678");
+  Serial.println("Точка доступа создана: SSID - Distilation, PASS - 12345678");
 
   server.on("/", HTTP_GET, []() {
-    server.send(200, "text/html", webpage); 
+    server.send(200, "text/html", auth_page); 
   });
+
+  server.on("/reset", HTTP_GET, []() {
+    EEPROM.begin(512);
+    EEPROM.write(0, 0); // Очистка EEPROM
+    EEPROM.commit();
+    server.send(200, "text/plain", "Настройки сброшены.");
+    delay(1000);
+    ESP.restart();
+  });
+  Serial.println("Страничка авторизации доступа по ip 192.168.1.1");
 
   server.on("/save", HTTP_POST, []() {
     ssid = server.arg("ssid");
     password = server.arg("password");
     saveConfig();
-    server.send(200, "text/plain", "Настройки сохранены. Перезагрузка...");
+    Serial.println("Настройки сохранены. Перезагрузка...");
     delay(1000);
     ESP.restart();
   });
@@ -193,10 +273,15 @@ void connectToWiFi() {
 
   int attempt = 0;
   while (WiFi.status() != WL_CONNECTED && attempt < 10) {
-    delay(1000);
+    digitalWrite(ledPin, LOW);
+    delay(500);
+    digitalWrite(ledPin, HIGH);
+    delay(500);
     Serial.println("Попытка подключения к сети...");
     attempt++;
   }
+
+  digitalWrite(ledPin, HIGH);
 
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Не удалось подключиться к сети. Сброс настроек...");
